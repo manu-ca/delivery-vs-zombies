@@ -7,15 +7,27 @@
 <style>
   html, body { margin: 0; height: 100%; background: #1b1a24; color: #e8d9b5; font: 14px system-ui, sans-serif; }
   main { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 16px; }
-  canvas { width: min(100%, 1280px); aspect-ratio: 16 / 9; display: block; outline: none; }
+  /* the game and, over its corner, the full-screen button */
+  #stage { position: relative; width: min(100%, 1280px); aspect-ratio: 16 / 9; }
+  #stage:fullscreen { width: 100vw; height: 100vh; aspect-ratio: auto; background: #000; }
+  canvas { width: 100%; height: 100%; display: block; outline: none; }
+  #full { position: absolute; right: 10px; bottom: 10px; width: 36px; height: 36px; padding: 8px; border: 1.5px solid rgba(188, 205, 210, .7);
+    border-radius: 8px; background: rgba(18, 50, 75, .6); color: #ebe5c8; cursor: pointer; opacity: .55; transition: opacity .15s; }
+  #full:hover, #full:focus-visible { opacity: 1; }
+  #full svg { display: block; width: 100%; height: 100%; }
   #fps { gap: 8px; flex-wrap: wrap; justify-content: center; font: 600 15px ui-monospace, monospace; }
   .chip { padding: 6px 10px; border-radius: 6px; background: #2b2a38; }
   .chip.big { font-size: 20px; background: #e8d9b5; color: #1b1a24; }
   .chip.key.on { background: #3f7a3a; color: #fff; }
   .chip.key.off { background: #8a2f2f; color: #fff; }
+  /* ?embed: the game alone, filling the frame it is embedded in (a portfolio page) */
+  .embed main { padding: 0; gap: 0; height: 100%; justify-content: center; }
+  .embed #stage { width: 100%; height: 100%; max-height: 100vh; aspect-ratio: auto; }
+  .embed #help { display: none; }
 </style>
 </head>
 <body>
+<script>if (new URLSearchParams(location.search).has('embed')) document.documentElement.classList.add('embed');</script>
 <main>
   <!-- ?fps: a test panel over the game (frame rate, and which look switches are on), big enough to read in a screen recording -->
   <div id="fps" style="display:none">
@@ -25,8 +37,13 @@
     <span class="chip" id="fps-size"></span>
     <span class="chip key on" id="k5">5 · niebla: ON</span>
   </div>
-  <canvas id="game" width="1280" height="720"></canvas>
-  <div>Click the game, then: Enter to start · arrows to ride · space to jump · down to crouch · Esc or Enter to pause · M sound · F turns the effects off if it runs slow.</div>
+  <div id="stage">
+    <canvas id="game" width="1280" height="720"></canvas>
+    <button id="full" type="button" title="Full screen" aria-label="Full screen">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4"/></svg>
+    </button>
+  </div>
+  <div id="help">Click the game, then: Enter to start · arrows to ride · space to jump · down to crouch · Esc or Enter to pause · M sound · F turns the effects off if it runs slow.</div>
 </main>
 <script>
   // ?fps: time spent inside each frame's callbacks (the game's own work: its
@@ -96,6 +113,16 @@
     }, true);
   }
   window.addEventListener('resize', () => r.resizeDrawingSurfaceToCanvas(dprFor()));
+  // Full screen: the stage fills the screen and the picture is scaled to it (the
+  // drawing buffer keeps its cap, so it costs the same to draw). Esc leaves it.
+  const stage = document.getElementById('stage');
+  const full = document.getElementById('full');
+  if (!document.fullscreenEnabled) full.style.display = 'none';
+  full.addEventListener('click', () => {
+    if (document.fullscreenElement) document.exitFullscreen(); else stage.requestFullscreen().catch(() => {});
+    canvas.focus();
+  });
+  document.addEventListener('fullscreenchange', () => { r.resizeDrawingSurfaceToCanvas(dprFor()); canvas.focus(); });
 </script>
 </body>
 </html>
