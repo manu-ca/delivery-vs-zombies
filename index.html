@@ -39,7 +39,7 @@
   </div>
   <div id="stage">
     <canvas id="game" width="1280" height="720"></canvas>
-    <button id="full" type="button" title="Full screen" aria-label="Full screen">
+    <button id="full" type="button" tabindex="-1" title="Full screen" aria-label="Full screen">
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4"/></svg>
     </button>
   </div>
@@ -118,11 +118,16 @@
   const stage = document.getElementById('stage');
   const full = document.getElementById('full');
   if (!document.fullscreenEnabled) full.style.display = 'none';
+  // The button must never take the page's focus: the runtime gives the keys to
+  // the game only while its own hidden text field (or the canvas) has it, and
+  // once that is lost the game stays deaf to the keyboard. So the press is
+  // swallowed before it moves the focus, and the button is out of the tab order.
+  full.addEventListener('pointerdown', (e) => e.preventDefault());
+  full.addEventListener('mousedown', (e) => e.preventDefault());
   full.addEventListener('click', () => {
     if (document.fullscreenElement) document.exitFullscreen(); else stage.requestFullscreen().catch(() => {});
-    canvas.focus();
   });
-  document.addEventListener('fullscreenchange', () => { r.resizeDrawingSurfaceToCanvas(dprFor()); canvas.focus(); });
+  document.addEventListener('fullscreenchange', () => r.resizeDrawingSurfaceToCanvas(dprFor()));
 </script>
 </body>
 </html>
