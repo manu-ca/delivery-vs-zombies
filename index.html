@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Delivery vs Zombies</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #1b1a24; color: #e8d9b5; font: 14px system-ui, sans-serif; }
+  main { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 16px; }
+  canvas { width: min(100%, 1280px); aspect-ratio: 16 / 9; display: block; outline: none; }
+  #fps { gap: 8px; flex-wrap: wrap; justify-content: center; font: 600 15px ui-monospace, monospace; }
+  .chip { padding: 6px 10px; border-radius: 6px; background: #2b2a38; }
+  .chip.big { font-size: 20px; background: #e8d9b5; color: #1b1a24; }
+  .chip.key.on { background: #3f7a3a; color: #fff; }
+  .chip.key.off { background: #8a2f2f; color: #fff; }
+</style>
+</head>
+<body>
+<main>
+  <!-- ?fps: a test panel over the game (frame rate, and which look switches are on), big enough to read in a screen recording -->
+  <div id="fps" style="display:none">
+    <span class="chip big" id="fps-n">-- fps</span>
+    <span class="chip" id="fps-cpu"></span>
+    <span class="chip" id="fps-worst"></span>
+    <span class="chip" id="fps-size"></span>
+    <span class="chip key on" id="k5">5 · niebla: ON</span>
+  </div>
+  <canvas id="game" width="1280" height="720"></canvas>
+  <div>Click the game, then: Enter to start · arrows to ride · space to jump · down to crouch · Esc or Enter to pause · M sound · F turns the effects off if it runs slow.</div>
+</main>
+<script>
+  // ?fps: time spent inside each frame's callbacks (the game's own work: its
+  // scripts and the drawing commands), to tell a busy CPU from a busy GPU
+  window.frameWork = { ms: 0 };
+  if (location.search.includes('fps')) {
+    const raf = window.requestAnimationFrame.bind(window);
+    window.requestAnimationFrame = (cb) => raf((t) => { const a = performance.now(); cb(t); window.frameWork.ms += performance.now() - a; });
+  }
+</script>
+<!-- Pinned: the keyboard bridge relies on this version's keyInput -->
+<script src="https://cdn.jsdelivr.net/npm/@rive-app/webgl2@2.44.0/rive.js"></script>
+<script src="keyboard-bridge.js"></script>
+<script>
+  // game.riv must be a signed build: `rive delivery-vs-zombies --publish`
+  const canvas = document.getElementById('game');
+  // ?dpr=1 draws at one pixel per point whatever the screen's density (to see how much the resolution costs)
+  const DPR = Number(new URLSearchParams(location.search).get('dpr')) || undefined;
+  // The game is drawn on a fixed 1280 x 720 stage: drawing the canvas at more pixels than that only
+  // costs (the web renderer fills every pixel four times over), so the drawing buffer is capped at
+  // 1280 wide (?res=1920 to lift the cap, ?res=960 to lower it). The browser scales the picture to the page.
+  const MAXW = Number(new URLSearchParams(location.search).get('res')) || 1280;
+  const dprFor = () => DPR || Math.min(devicePixelRatio, MAXW / Math.max(canvas.clientWidth, 1));
+  const r = new rive.Rive({
+    src: (new URLSearchParams(location.search).get('riv') ? 'v/' + new URLSearchParams(location.search).get('riv') + '.riv' : 'game.riv'),
+    canvas,
+    artboard: 'Game',
+    stateMachine: 'Main',
+    autoplay: true,
+    autoBind: true,
+    enableGPUCanvas: true, // required for the WGSL post-processing
+    layout: new rive.Layout({ fit: rive.Fit.Contain }),
+    onLoad: () => {
+      r.resizeDrawingSurfaceToCanvas(dprFor());
+      attachRiveKeyboard(r, canvas);
+    },
+    onLoadError: (e) => console.error('Rive load error', e),
+  });
+  // ?fps shows the frame rate under the game (to test on a given computer)
+  if (location.search.includes('fps')) {
+    document.getElementById('fps').style.display = 'flex';
+    const $ = (id) => document.getElementById(id);
+    let n = 0, worst = 0, last = performance.now(), t0 = last;
+    (function tick(t) {
+      n++; worst = Math.max(worst, t - last); last = t;
+      if (t - t0 >= 1000) {
+        $('fps-n').textContent = n + ' fps';
+        $('fps-cpu').textContent = 'trabajo ' + (window.frameWork.ms / n).toFixed(1) + ' ms/cuadro';
+        window.frameWork.ms = 0;
+        $('fps-worst').textContent = 'peor cuadro ' + worst.toFixed(0) + ' ms';
+        $('fps-size').textContent = 'canvas ' + canvas.width + '×' + canvas.height + ' @' + dprFor().toFixed(2) + 'x';
+        n = 0; worst = 0; t0 = t;
+      }
+      requestAnimationFrame(tick);
+    })(performance.now());
+    // The look's switch: the game flips the fog on key 5 (it starts on);
+    // this mirrors the same key presses, so the panel shows what the game has
+    const LOOK = { Digit5: ['k5', '5 · niebla', true] }; // (the cold grade, key 4, is gone: the palette itself is cooled)
+    // (on the window, while it is on its way down: the runtime may hold the focus in an element of its own)
+    window.addEventListener('keydown', (e) => {
+      const sw = LOOK[e.code];
+      if (!sw || e.repeat) return;
+      sw[2] = !sw[2];
+      const el = $(sw[0]);
+      el.textContent = sw[1] + ': ' + (sw[2] ? 'ON' : 'OFF');
+      el.className = 'chip key ' + (sw[2] ? 'on' : 'off');
+    }, true);
+  }
+  window.addEventListener('resize', () => r.resizeDrawingSurfaceToCanvas(dprFor()));
+</script>
+</body>
+</html>
